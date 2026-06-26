@@ -1,6 +1,24 @@
 # Changelog
 All notable changes to the Second Layer Capital Quantum Ecosystem Screener will be documented in this file.
 
+# Changelog
+All notable changes to the Second Layer Capital Quantum Ecosystem Screener will be documented in this file.
+
+## - 2026-06-26
+### Added
+* **Expanded Universe Registry (`universe.py`)**: Scaled tracking coverage to 10 tier-1 picks-and-shovels assets, formally mapping the `UPSTREAM_MATERIALS` bottleneck layer (`ASMI`, `CCJ`, `COHR`, `LNDB`, `LIN`).
+* **Conference Intelligence Scraper (`conference_intel.py`)**: Deployed a dynamic headless browser pipeline using Playwright to extract dynamic javascript content blocks from premier summits (Quantum World Congress).
+* **Global Market Verification Registry**: Integrated an automated OpenFIGI API query layer to instantly separate public listings from private venture capital targets.
+* **Dual-Tab Spreadsheet Exporter**: Automated generation of organized corporate discovery workbooks splitting leads into `PUBLIC_EQUITIES` and `PRIVATE_VENTURE_WATCHLIST` tabs.
+* **Segment Filtering Flags (`scoring.py`)**: Upgraded the core engine with targeted argument options (`target_layer`) to slice results and isolate leaderboards strictly by specialized supply chain segments.
+
+### Changed
+* **Filing-Specific SEC Parsers (`ingestion.py`)**: Upgraded accounting data extraction to scan history arrays and explicitly separate audited annual `10-K` metrics from current-quarter `10-Q` cash balances.
+
+### Fixed
+* **Crash Resilience Guard Clauses**: Replaced absolute array lookups with safe `NoneType` catch blocks and mapping fallbacks to prevent pipeline failures on missing corporate identifiers or internet DNS interruptions (`Errno 11001`).
+* **Git Environment Security**: Restructured tracking rules in `.gitignore` to securely lock out isolated environment containers (`venv/`) and binary spreadsheet outputs (`intelligence_out/`) from public cloud repositories.
+
 ## - 2026-06-25
 ### Added
 * **SEC Data Integration (`ingestion.py`)**: Built a zero-auth public regulatory data stream mapping out 10-digit SEC corporate CIK codes for direct financial fact extraction.
