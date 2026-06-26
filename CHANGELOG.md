@@ -41,3 +41,5 @@ All notable changes to the Second Layer Capital Quantum Ecosystem Screener will 
 
 ### Security
 * **Git Version Control**: Cleaned environment paths and configured explicit local `.gitignore` rules to completely lock out background caching (`__pycache__/`) and local financial storage files (`data_storage/`) from cloud tracking.
+
+* **Insider Accumulation Monitor (\insider_tracker.py\):** Deployed real-time SEC Form 4 parser filtering out equity grant noise and capturing open-market purchases (Code P).
