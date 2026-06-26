@@ -2,6 +2,11 @@
 All notable changes to the Second Layer Capital Quantum Ecosystem Screener will be documented in this file.
 
 ## - 2026-06-25
+### Changed
+* **Scoring Logic (`scoring.py`)**: Refined the quantitative engine to handle zero-revenue operators via operational expense proxies, process cash-flow positive enablers without hitting division-by-zero math boundaries, and bound volatile metrics to standard 0.0–1.0 ranges.
+* **Ingestion Simulation (`ingestion.py`)**: Replaced raw data templates with distinct operational risk profiles to rigorously test and validate multi-factor ecosystem edge cases.
+
+## - 2026-06-25
 ### Added
 * **Universe Registry (`universe.py`)**: Initialized a 5-ticker pure-play tracking registry covering core hardware, control system RF, and cryogenic infrastructure enablers.
 * **Screener Configurations (`settings.py`)**: Established baseline multi-factor scoring weights emphasizing R&D Intensity (40%) and Cash Runway (30%).
