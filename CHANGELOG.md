@@ -4,6 +4,10 @@ All notable changes to the Second Layer Capital Quantum Ecosystem Screener will 
 # Changelog
 All notable changes to the Second Layer Capital Quantum Ecosystem Screener will be documented in this file.
 
+## - 2026-07-02
+### Added
+* **Dynamic Growth Analytics (`scoring.py`):** Upgraded factor calculations to extract and compare multi-year historical revenue files, computing real percentage shifts while insulating pre-revenue assets from system crashes.
+* 
 ## - 2026-06-26
 ### Added
 * **Expanded Universe Registry (`universe.py`)**: Scaled tracking coverage to 10 tier-1 picks-and-shovels assets, formally mapping the `UPSTREAM_MATERIALS` bottleneck layer (`ASMI`, `CCJ`, `COHR`, `LNDB`, `LIN`).
