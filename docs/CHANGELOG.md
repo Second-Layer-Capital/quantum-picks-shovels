@@ -1,6 +1,21 @@
 # Changelog
 All notable changes to the Second Layer Capital Quantum Ecosystem Screener will be documented in this file.
 
+## - 2026-11-16
+### Overhaul — complete rebuild on the nuclear/hypersonic house pattern
+* **Deleted** `ingestion.py` (malformed SEC URL, always fell back to hardcoded profiles), `conference_intel.py` (OpenFIGI at the wrong endpoint), `insider_tracker.py` (fabricated mock alerts on network failure), `settings.py` (FMP key), root `scoring.py` and `universe.py`.
+* **Universe (`config/universe.py`)**: 9 unique companies in 4 layers; Linde appears once as LIN (bogus ticker LNDB dropped). Empty `WATCHLIST` — no additional candidates could be verified from the thesis. ASMI mapped to Euronext `ASM.AS` (Nasdaq ASMI delisted).
+* **Scorer (`scoring/quantum_scorer.py`)**: 0–100 composite, house thresholds (STRONG ≥75 / NEUTRAL 50–74 / WEAK 25–49 / CRITICAL <25), per-layer weights (pure-play vs enabler), bucket coverage (BKTS). Pre-revenue: growth and margin are MISSING, never zero or a made-up default. Runway <12 months flags and caps at WEAK. Dilution flag. Thesis/milestone bucket is a manual input, default missing. No fabricated data anywhere.
+* **Data (`data/fetch_fundamentals.py`)**: yfinance throughout — fundamentals, Wilder's RSI-14, 50-day SMA. Fetch failure returns None and prints an error, never invented numbers.
+* **Allocator (`allocator.py`)**: score gate ≥ 50, $10,000, equal weights, technical filter (above-50-SMA for EXECUTE BUY; RSI ≥ 70 HOLD; RSI ≤ 35 + above SMA dip alert). Runway-flagged names never allocated. Order sheet with +0.5% limits.
+* **Live signal (`live_signal.py`)**: score gate ≥ 40, $800, SGOV defensive, order sheet, prior-run change tracking.
+* **Backtester (`backtester.py`)**: 14/60/200-day momentum, 15% stop, 100% take-profit, true buy-and-hold benchmark (equal dollars, fixed shares, weights drift) plus the daily-rebalanced variant labeled separately. Gated variants labeled "(in-sample)" — today's scores gating history is lookahead.
+* **Ledger (`logger.py`, `metrics.py`)**: paper-trade ledger, header-only `data/trade_log.csv`, empty-log-safe metrics, SELL rows never counted as investment.
+* **Milestone tracker (`milestone_tracker.py`)**: earnings dates (3-attempt parse) plus hand-entered milestones from `data/milestones.json`; fetch failure is reported, never a fake date.
+* **Briefing (`report.py`)**: ranked table, live signals, runway flags, earnings/milestones, ledger summary.
+* **Docs**: `docs/DECISIONS.md` records every judgment call as Kevin's open call. README rewritten to the nuclear standard.
+* **Tests**: 170 known-answer checks across five test files (outside the repo), all passing; live runs verified on real yfinance data 2026-11-16.
+
 ## - 2026-07-02
 ### Added
 * **Dynamic Growth Analytics (`scoring.py`):** Upgraded factor calculations to extract and compare multi-year historical revenue files, computing real percentage shifts while insulating pre-revenue assets from system crashes.

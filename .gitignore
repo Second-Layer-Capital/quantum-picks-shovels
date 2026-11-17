@@ -4,3 +4,4 @@ __pycache__/
 venv/
 
 intelligence_out/
+signal_state.json
