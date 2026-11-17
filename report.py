@@ -1,0 +1,317 @@
+"""
+Quantum Picks & Shovels Screener — Daily Briefing
+Second Layer Capital
+
+Modeled on the hypersonic screener's report.py: reads like a morning
+briefing, not a data table. Prints:
+
+  1. The ranked scorer table (via scoring/quantum_scorer.py),
+  2. The live-signal names and any runway flags,
+  3. Upcoming earnings / milestones (via milestone_tracker.py),
+  4. The portfolio / ledger summary (via metrics.py),
+  5. Signal- and drift-history status.
+
+Runnable standalone: python report.py
+
+Never crashes when data files are missing or empty, or when the
+scorer is unavailable — it prints "no data" lines instead. A failed
+section is reported as failed, never presented as an empty result.
+"""
+
+import json
+import os
+import sys
+from datetime import date
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_STORAGE_DIR = os.path.join(BASE_DIR, "data_storage")
+SIGNAL_HISTORY_PATH = os.path.join(DATA_DIR, "signal_history.json")
+DRIFT_HISTORY_PATH = os.path.join(DATA_DIR, "drift_history.json")
+
+STRONG_SIGNALS = {"STRONG", "BUY", "EXECUTE BUY", "EXECUTE_BUY"}
+
+
+# ── Universe (same loader as backtester.py — tickers never hardcoded) ──
+
+def load_universe():
+    """Return (tickers, meta). Prefers config/universe.py, falls back
+    to root universe.py. See backtester.py for the full contract."""
+    raw = None
+    for mod_name in ("config.universe", "universe"):
+        try:
+            mod = __import__(mod_name, fromlist=["x"])
+        except Exception:
+            continue
+        for attr in ("QUANTUM_UNIVERSE", "UNIVERSE", "TICKERS"):
+            if hasattr(mod, attr):
+                raw = getattr(mod, attr)
+                break
+        if raw is not None:
+            break
+    if raw is None:
+        raise RuntimeError("Universe unavailable.")
+    if isinstance(raw, (list, tuple)):
+        return list(raw), {t: {} for t in raw}
+    if isinstance(raw, dict):
+        values = list(raw.values())
+        if values and all(
+            isinstance(v, dict) and "tickers" in v for v in values
+        ):
+            tickers, meta = [], {}
+            for domain, entry in raw.items():
+                for t in entry["tickers"]:
+                    tickers.append(t)
+                    meta[t] = {"layer": domain}
+            return tickers, meta
+        return list(raw.keys()), dict(raw)
+    raise RuntimeError(f"Universe registry has an unrecognized shape: {type(raw)}")
+
+
+# ── Scorer ────────────────────────────────────────────────────────────────────
+
+def _load_fundamentals(tickers):
+    """{ticker: dict | None} from the data_storage SEC cache, when
+    present. Missing file → None (scorer contract allows None)."""
+    fundamentals = {}
+    for ticker in tickers:
+        path = os.path.join(DATA_STORAGE_DIR, f"{ticker}_data.json")
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    fundamentals[ticker] = json.load(f)
+            except Exception:
+                fundamentals[ticker] = None
+        else:
+            fundamentals[ticker] = None
+    return fundamentals
+
+
+def get_ranked_scores(tickers):
+    """Ranked scorer rows, or (None, reason) when the scorer cannot
+    run. Never raises — a missing scorer is a briefing gap, not a
+    crash."""
+    try:
+        from scoring.quantum_scorer import calculate_scores
+    except Exception as e:
+        return None, f"scorer unavailable ({e})"
+    try:
+        rows = calculate_scores(_load_fundamentals(tickers))
+    except Exception as e:
+        return None, f"scorer failed ({e})"
+    if not rows:
+        return [], "scorer returned no rows"
+    scored = [r for r in rows if r.get("final_score") is not None]
+    unscored = [r for r in rows if r.get("final_score") is None]
+    ranked = sorted(scored, key=lambda r: r["final_score"], reverse=True) + unscored
+    return ranked, None
+
+
+# ── History files ─────────────────────────────────────────────────────────────
+
+def _load_json_or_none(path):
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+# ── Briefing ──────────────────────────────────────────────────────────────────
+
+def generate_briefing():
+    """Build the briefing text. Sections that cannot load print a
+    'no data' / failure line instead of crashing."""
+    today = date.today().strftime("%B %d, %Y")
+    lines = []
+    lines.append("# Quantum Picks & Shovels Screener")
+    lines.append(f"## Daily Briefing — {today}")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    try:
+        tickers, meta = load_universe()
+    except Exception as e:
+        lines.append(f"> ⚠️ Universe unavailable ({e}) — no ranking possible.")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("*Generated by Quantum Picks & Shovels Screener — "
+                     f"{today}*")
+        return "\n".join(lines)
+
+    # --- Ranked scores ---
+    lines.append("## Ranked Scores")
+    lines.append("")
+    ranked, reason = get_ranked_scores(tickers)
+    if ranked is None:
+        lines.append(f"> ⚠️ Ranked table unavailable: {reason}. This is a "
+                     f"scorer failure, not an empty universe.")
+        lines.append("")
+    elif not ranked:
+        lines.append(f"> No data — {reason}. No tickers scored.")
+        lines.append("")
+    else:
+        lines.append("| Rank | Ticker | Name | Layer | Score | Signal | "
+                     "Buckets | Flags |")
+        lines.append("|------|--------|------|-------|------:|--------|------"
+                     ":|-------|")
+        for i, r in enumerate(ranked, 1):
+            score = r.get("final_score")
+            score_txt = f"{score:.1f}" if score is not None else "N/A"
+            buckets = (f"{r.get('bucket_count', '?')}/"
+                       f"{r.get('buckets_possible', '?')}")
+            flags = "; ".join(r.get("flags") or []) or "—"
+            lines.append(
+                f"| {i} | {r.get('ticker', '?')} "
+                f"| {r.get('name') or meta.get(r.get('ticker'), {}).get('name', '—')} "
+                f"| {r.get('layer', '—')} | {score_txt} "
+                f"| {r.get('signal', '—')} | {buckets} | {flags} |")
+        lines.append("")
+
+        live = [r.get("ticker") for r in ranked
+                if str(r.get("signal", "")).upper() in STRONG_SIGNALS]
+        lines.append("## Live Signals")
+        lines.append("")
+        if live:
+            lines.append(f"Strong / buy signals: **{', '.join(live)}**.")
+        else:
+            lines.append("No data — no ticker carries a strong/buy signal "
+                         "today.")
+        lines.append("")
+
+        runway = [(r.get("ticker"), f)
+                  for r in ranked for f in (r.get("flags") or [])
+                  if "runway" in str(f).lower()]
+        lines.append("## Runway Flags")
+        lines.append("")
+        if runway:
+            for ticker, flag in runway:
+                lines.append(f"- **{ticker}** — {flag}")
+        else:
+            lines.append("No data — no runway flags on today's scores.")
+        lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # --- Earnings & milestones ---
+    lines.append("## Earnings & Milestones")
+    lines.append("")
+    try:
+        from milestone_tracker import check_milestones
+        results = check_milestones(tickers)
+        n_failed = sum(1 for r in results if r["status"] == "fetch_failed")
+        if results and n_failed == len(results):
+            lines.append("> ⚠️ Earnings fetch failed for every ticker — "
+                         "no dates below are real; none were invented.")
+            lines.append("")
+        for r in results:
+            if r["status"] == "ok":
+                lines.append(
+                    f"- **{r['ticker']}** — earnings "
+                    f"{r['earnings_date'].strftime('%Y-%m-%d')} "
+                    f"({r['days_until']} days)")
+            elif r["status"] == "fetch_failed":
+                lines.append(f"- **{r['ticker']}** — earnings fetch "
+                             f"failed (no date invented)")
+            else:
+                lines.append(f"- **{r['ticker']}** — no earnings date found")
+            for m in r["milestones"]:
+                if isinstance(m, dict):
+                    lines.append(
+                        f"  - milestone {m.get('date', 'no date')}: "
+                        f"{m.get('milestone', m)}")
+                else:
+                    lines.append(f"  - milestone: {m}")
+            if not r["milestones"]:
+                lines.append("  - no milestones on file")
+    except Exception as e:
+        lines.append(f"> ⚠️ Earnings/milestone check failed "
+                     f"({type(e).__name__}: {e}). This is not the same "
+                     f"as no upcoming earnings.")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # --- Portfolio / ledger summary ---
+    lines.append("## Portfolio (Paper Ledger)")
+    lines.append("")
+    try:
+        from metrics import compute_metrics
+        m = compute_metrics()
+        if m["buy_count"] == 0 and m["sell_count"] == 0:
+            lines.append("No data — the paper trade log is empty.")
+        else:
+            lines.append(f"- Total invested (BUY rows only): "
+                         f"${m['total_invested']:,.2f}")
+            lines.append(f"- Current value: "
+                         f"${m['total_current_value']:,.2f}")
+            lines.append(f"- Unrealized PnL: "
+                         f"${m['total_profit_loss']:+,.2f} "
+                         f"({m['total_return_pct']:+.2f}%)")
+            lines.append(f"- Win rate: {m['win_rate']:.1f}% "
+                         f"({m['winning_trades']}/"
+                         f"{m['trades_evaluated']})")
+            lines.append(f"- Trades: {m['buy_count']} BUY, "
+                         f"{m['sell_count']} SELL")
+            if m["price_fetch_failures"]:
+                lines.append(
+                    f"- Excluded (price fetch failed): "
+                    f"{', '.join(m['price_fetch_failures'])}")
+    except Exception as e:
+        lines.append(f"> ⚠️ Ledger summary unavailable "
+                     f"({type(e).__name__}: {e}).")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # --- History files ---
+    lines.append("## Signal & Drift History")
+    lines.append("")
+    sig = _load_json_or_none(SIGNAL_HISTORY_PATH)
+    drift = _load_json_or_none(DRIFT_HISTORY_PATH)
+    if sig is None:
+        lines.append("- Signal history: no data (file missing or unreadable).")
+    elif not sig:
+        lines.append("- Signal history: no data (empty — nothing recorded yet).")
+    else:
+        lines.append(f"- Signal history: {len(sig)} ticker(s) tracked.")
+    if drift is None:
+        lines.append("- Drift history: no data (file missing or unreadable).")
+    elif not drift:
+        lines.append("- Drift history: no data (empty — nothing recorded yet).")
+    else:
+        lines.append(f"- Drift history: {len(drift)} ticker(s) tracked.")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append("## Notes")
+    lines.append("")
+    lines.append("> Scores reflect real fundamental data where available; "
+                 "a missing score never excludes a ticker from price "
+                 "signals, and a missing section above is reported as "
+                 "missing, never filled in.")
+    lines.append("> This report is for personal research purposes only. "
+                 "Nothing here constitutes financial advice.")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append(f"*Generated by Quantum Picks & Shovels Screener — {today}*")
+    return "\n".join(lines)
+
+
+def run_report():
+    briefing = generate_briefing()
+    print("\n\n")
+    print(briefing)
+    return briefing
+
+
+if __name__ == "__main__":
+    run_report()
